@@ -128,7 +128,7 @@ names(error_out_rf)&lt;-NULL;
 names(error_in_boost)&lt;-NULL;
 names(error_in_rf)&lt;-NULL;
 errors&lt;-data.frame(matrix(c(error_cv_boost, error_cv_rf, error_in_boost, error_in_rf, error_out_boost, error_out_rf), nrow=2, ncol=3));
-names(errors)&lt;-c(&quot;cross validation&quot;, &quot;in sample&quot;, &quot;out sample&quot;)
+names(errors)&lt;-c(&quot;cross validation&quot;, &quot;in sample&quot;, &quot;out of sample&quot;)
 rownames(errors)&lt;-c(&quot;boost&quot;,&quot;rf&quot;);
 errors;</code></pre>
 <p>We obtain the following results.</p>

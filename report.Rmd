@@ -91,7 +91,7 @@ names(error_out_rf)<-NULL;
 names(error_in_boost)<-NULL;
 names(error_in_rf)<-NULL;
 errors<-data.frame(matrix(c(error_cv_boost, error_cv_rf, error_in_boost, error_in_rf, error_out_boost, error_out_rf), nrow=2, ncol=3));
-names(errors)<-c("cross validation", "in sample", "out sample")
+names(errors)<-c("cross validation", "in sample", "out of sample")
 rownames(errors)<-c("boost","rf");
 errors;
 ```
