@@ -1,0 +1,120 @@
+---
+title: "Practical Machine Learning project"
+author: "Alberto Costa"
+output: html_document
+---
+
+## 1. Summary
+We have a dataset containing the output from different accelerometers used by 6 person who were asked to perform barbell lifts in different ways.
+Depending on how they performed the exercise, they were categorized into 5 different classes.
+The goal of this project is to train a machine learning algorithm on the dataset in order to predict the class for 20 other observations. In the following we show how we cleaned the data, how we tested and chose a machine learning algorithm, and the results we have obtained.  
+
+## 2. Data analysis 
+We first load the package that we will need for the analysis (other required packages were loaded automatically).
+```{r, eval=FALSE}
+library(caret); library(randomForest);
+```
+We have downloaded the files "pml-training.csv" and "pml-testing.csv" in the working directory, so we can load them, and check their details.
+```{r, eval=FALSE}
+#load data
+dataset<-read.csv("pml-training.csv"); #dataset
+submission<-read.csv("pml-testing.csv"); #what we have to predict
+summary(dataset); str(dataset); #check informations about dataset
+summary(submission); str(submission); #check informations about file with observations to predict
+```
+The dataset consists of 19622 observations and 160 variables, whereas the other one has got 160 variables but 20 observations. Notice that in the dataset one of the variables is "classe", i.e., what we have to predict. In the other file we do not have the variable "classe" (it is the one we have to predict), but we have "problem_id".
+
+
+## 3. Data cleaning
+From the previous step we notice some variables with a high number of NA values in the dataset. We decide to remove the variables for which the percentage of NA is more than or equal to 50%.
+```{r, eval=FALSE}
+col_no_NA<-apply(dataset,2,function(x) {sum(is.na(x))/length(x)<0.5});
+dataset_clean<-dataset[,col_no_NA];
+```
+We also remove the variables with near zero variance, and variables not meaningful (e.g., name of the person, timestamp).
+```{r, eval=FALSE}
+#removing not significant data
+nzv_dataset<-nearZeroVar(dataset_clean,saveMetrics=TRUE);
+variables<-row.names(nzv_dataset[nzv_dataset$nzv==FALSE,]);
+variables<-variables[-c(1:6)]; #remove not useful infos (i.e., name, timestamps...)
+dataset_clean<-dataset_clean[,names(dataset_clean) %in% variables];
+```
+Finally, we check whether there are other variables with NA values. 
+```{r, eval=FALSE}
+apply(dataset_clean,2,function(x) {sum(is.na(x))});
+```
+Since the answer is negative, there is no need for imputing the data. Moreover, the approaches we will use are based on trees, and in this case the standardization is less important, so we have not performed it. The dataset consist now of 53 variables.
+
+## 4. Cross validation and models fitting
+According to the slides, the best performing algorithms are usually random forest and boosting, hence we decided to compare them and to use the best one for our final prediction. In order to have a more robust model, we have also performed cross validation with Caret. First we split the dataset into training set (80%) and test set (20%). 
+```{r, eval=FALSE}
+set.seed(123)
+#split dataset in 20% test set (for out-of-sample error), and 80% for training the model
+inTrain <- createDataPartition(y=dataset_clean$classe, p=0.8, list=FALSE);
+training <- dataset_clean[inTrain,];
+test <- dataset_clean[-inTrain,];
+```
+We then perform 4-fold cross validation on the training set. We do this using directly the function train of Caret. The first method we test is the boosting with trees.
+```{r, eval=FALSE}
+#boosting with 4-fold cross validation
+set.seed(123)
+modfit_boost<-train(classe~.,data=training,method="gbm",trControl=trainControl(method = "cv", number = 4), verbose=FALSE);
+```
+The second method we try is the random forest.
+```{r, eval=FALSE}
+#random forest with 4-fold cross validation
+set.seed(123)
+modfit_rf<-train(classe~.,data=training,method="rf",trControl=trainControl(method = "cv", number = 4));
+```
+
+## 5. Estimation of errors
+We compare now the two models of the previous section. We use as quality metric the accuracy (since the variable to predict is a factor variable). We report the cross validation error (that is the error found by the train function of Caret with the best parameter setting), in sample error (obtained with the whole training set), and the out of sample error (obtained with the test set). We use the latter to decide the model to employ for the final predictions.
+
+```{r, echo=FALSE}
+error_cv_boost<-0.039139773;
+error_cv_rf<-0.007261488;
+error_in_boost<-0.02885534;
+error_in_rf<-0;
+error_out_boost<-0.027784859;
+error_out_rf<-0.004843232;
+```
+
+```{r, eval=FALSE}
+error_cv_boost<-1-max(modfit_boost$results['Accuracy']);
+error_cv_rf<-1-max(modfit_rf$results['Accuracy'])
+error_in_boost<-1-confusionMatrix(predict(modfit_boost,training),training$classe)$overall['Accuracy'];
+error_in_rf<-1-confusionMatrix(predict(modfit_rf,training),training$classe)$overall['Accuracy'];
+error_out_boost<-1-confusionMatrix(predict(modfit_boost,test),test$classe)$overall['Accuracy'];
+error_out_rf<-1-confusionMatrix(predict(modfit_rf,test),test$classe)$overall['Accuracy'];
+names(error_out_boost)<-NULL;
+names(error_out_rf)<-NULL;
+names(error_in_boost)<-NULL;
+names(error_in_rf)<-NULL;
+errors<-data.frame(matrix(c(error_cv_boost, error_cv_rf, error_in_boost, error_in_rf, error_out_boost, error_out_rf), nrow=2, ncol=3));
+names(errors)<-c("cross validation", "in sample", "out sample")
+rownames(errors)<-c("boost","rf");
+errors;
+```
+We obtain the following results.
+```{r, echo=FALSE}
+names(error_out_boost)<-NULL;
+names(error_out_rf)<-NULL;
+names(error_in_boost)<-NULL;
+names(error_in_rf)<-NULL;
+errors<-data.frame(matrix(c(error_cv_boost, error_cv_rf, error_in_boost, error_in_rf, error_out_boost, error_out_rf), nrow=2, ncol=3));
+names(errors)<-c("cross validation", "in sample", "out of sample");
+rownames(errors)<-c("boost","rf");
+errors;
+```
+
+Clearly random forest outperforms boosting, and we expect an out of sample error of less than 0.5%. Hence we use the modfit_rf model to make the final prediction. 
+
+## 6. Results
+As final step, we predict the classe variable for the 20 observation required.
+```{r, eval=FALSE}
+predict(modfit_rf,submission);
+```
+```{r, echo=FALSE}
+factor(c("B", "A", "B", "A", "A", "E", "D", "B", "A", "A", "B", "C", "B", "A", "E", "E", "A", "B", "B", "B"))
+```
+Using the function pml_write_files reported in the website we have prepared the input for the evaluation. The score obtained is 100%.
